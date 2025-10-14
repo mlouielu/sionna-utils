@@ -1,0 +1,14 @@
+[project]
+name = "sionna-utils"
+version = "0.1.0"
+description = "Sionna Utils"
+readme = "README.md"
+license = "BSD-3-Clause-Clear"
+authors = [
+    { name = "Louie Lu", email = "git@louie.lu" }
+]
+
+requires-python = ">=3.10"
+dependencies = [
+    "sionna-rt>=1.2.0",
+]
