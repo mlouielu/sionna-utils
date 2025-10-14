@@ -12,3 +12,8 @@ requires-python = ">=3.10"
 dependencies = [
     "sionna-rt>=1.2.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
