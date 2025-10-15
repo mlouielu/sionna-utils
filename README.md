@@ -39,7 +39,7 @@ Open `preview.html` in browser:
 ### Add a coordinate frame in the scene
 
 
-```
+```python
 import sionna.rt
 import sionna_utils
 
@@ -64,7 +64,7 @@ visualize the paths that are 3-bounce path, you can combine
 `sionna_utils.paths.get_path_depths()` to get the exact paths to
 visualize it:
 
-```
+```python
 import numpy as np
 
 import sionna.rt
