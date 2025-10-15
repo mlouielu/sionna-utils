@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+import open3d as o3d
 
 import sionna.rt
 import mitsuba as mi
@@ -34,6 +35,63 @@ def scene():
     d = float(dist / np.sqrt(2))
     scene.add(Transmitter(name="tx", position=[-d, 0, d]))
     scene.add(Receiver(name="rx", position=[d, 0, d]))
+
+    return scene
+
+
+@pytest.fixture
+def multipath_scene():
+    scene = sionna.rt.Scene()
+
+    # Objs
+    mat = sionna.rt.ITURadioMaterial("reflect_mat", "metal", 1.0)
+
+    floor = sionna.rt.SceneObject(
+        sionna_utils.geometry.load_mesh_from_open3d(
+            o3d.geometry.TriangleMesh.create_box(50, 10),
+            "floor",
+        ),
+        name="floor",
+        radio_material=mat,
+    )
+    scene.edit(add=floor)
+    floor.position = [10, 0, 0]
+
+    wall1 = sionna.rt.SceneObject(
+        sionna_utils.geometry.load_mesh_from_open3d(
+            o3d.geometry.TriangleMesh.create_box(0.1, 10, 10),
+            "wall1",
+        ),
+        name="wall1",
+        radio_material=mat,
+    )
+    scene.edit(add=wall1)
+    wall1.position = [5, 0, 5]
+
+    # RF
+    scene.tx_array = PlanarArray(
+        num_rows=1,
+        num_cols=2,
+        vertical_spacing=0.5,
+        horizontal_spacing=0.5,
+        pattern="tr38901",
+        polarization="V",
+    )
+
+    # Configure antenna array for all receivers
+    scene.rx_array = PlanarArray(
+        num_rows=1,
+        num_cols=3,
+        vertical_spacing=0.5,
+        horizontal_spacing=0.5,
+        pattern="dipole",
+        polarization="cross",
+    )
+
+    dist = 5
+    d = float(dist / np.sqrt(2))
+    scene.add(Transmitter(name="tx", position=[-d, 0, d]))
+    scene.add(Receiver(name="rx", position=[-d + 0.05, 0, d]))
 
     return scene
 
@@ -352,3 +410,73 @@ def test_get_a_mag_reduced(scene):
     a = sionna_utils.paths.get_a_mag_reduced(paths)
 
     assert a.shape == paths.a[0].shape[-1:]
+
+
+def test_get_paths_hit_objects(multipath_scene):
+    obj_ids = {}
+    for name, obj in multipath_scene.objects.items():
+        obj.radio_material.scattering_coefficient = 0.1
+        obj_ids[name] = obj.object_id
+
+    p_solver = PathSolver()
+    paths = p_solver(
+        multipath_scene,
+        max_depth=3,
+        los=False,
+        specular_reflection=True,
+        diffuse_reflection=True,
+        synthetic_array=False,
+        seed=42,
+    )
+
+    # floor -> wall -> floor
+    mask = sionna_utils.paths.get_paths_hit_sequence(paths, [1, 2, 1])
+    depths = sionna_utils.paths.get_path_depths(paths)
+    seq_mask = paths.valid.numpy() & mask & (depths == 3)
+
+    per_link_mask = sionna_utils.paths.get_paths_hit_sequence(
+        paths, [1, 2, 1], "per_link"
+    )
+
+    # XXX: So, the seed is not cross-platform guaranteed?
+    assert seq_mask.any(axis=tuple(range(seq_mask.ndim - 1))).sum() <= 20
+    assert np.array_equal(seq_mask, per_link_mask)
+
+    # wall -> floor
+    mask = sionna_utils.paths.get_paths_hit_sequence(paths, [2, 1])
+    depths = sionna_utils.paths.get_path_depths(paths)
+    seq_mask = mask & (depths == 2)
+    wall_floor_count = seq_mask.any(axis=tuple(range(seq_mask.ndim - 1))).sum()
+    assert wall_floor_count > 200
+
+    # floor -> wall
+    mask = sionna_utils.paths.get_paths_hit_sequence(paths, [1, 2])
+    depths = sionna_utils.paths.get_path_depths(paths)
+    seq_mask = mask & (depths == 2)
+    floor_wall_count = seq_mask.any(axis=tuple(range(seq_mask.ndim - 1))).sum()
+    assert floor_wall_count > 1000
+
+    # Any floor & wall
+    mask = sionna_utils.paths.get_paths_hit_objects(paths, [1, 2])
+    depths = sionna_utils.paths.get_path_depths(paths)
+    seq_mask = mask & (depths == 2)
+    any_floor_wall_count = seq_mask.any(axis=tuple(range(seq_mask.ndim - 1))).sum()
+
+    # XXX: Could be a bug here?
+    assert any_floor_wall_count <= wall_floor_count + floor_wall_count
+
+    # Only hits floor
+    depths = sionna_utils.paths.get_path_depths(paths)
+
+    per_link_mask_1 = sionna_utils.paths.get_paths_hit_objects(paths, [1], "per_link")
+    any_mask_1 = sionna_utils.paths.get_paths_hit_objects(paths, [1], "any")
+    all_mask_1 = sionna_utils.paths.get_paths_hit_objects(paths, [1], "all")
+    per_link_mask_2 = sionna_utils.paths.get_paths_hit_objects(paths, 1, "per_link")
+    any_mask_2 = sionna_utils.paths.get_paths_hit_objects(paths, 1, "any")
+    all_mask_2 = sionna_utils.paths.get_paths_hit_objects(paths, 1, "all")
+
+    assert np.array_equal(per_link_mask_1[0], per_link_mask_2)
+    assert np.array_equal(any_mask_1[0], any_mask_2)
+    assert np.array_equal(all_mask_1[0], all_mask_2)
+
+    mask = (depths == 1) & all_mask_2
