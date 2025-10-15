@@ -77,4 +77,64 @@ def get_a(a: tuple[mi.TensorXf, mi.TensorXf]) -> np.ndarray:
 
 
 def get_a_mag(obj) -> np.ndarray:
+    """Get channel coefficient magnitude (full shape maintained).
+
+    Args:
+        obj: Paths object or tuple of (real, imag) tensors
+
+    Returns:
+        Magnitude array with original shape preserved
+
+    Example:
+        >>> a_mag = get_a_mag(paths)
+        >>> # Shape: (1, num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths)
+    """
     return np.abs(get_a(obj))
+
+
+@_w("a")
+def get_a_mag_reduced(
+    a: tuple[mi.TensorXf, mi.TensorXf], mode: str = "max"
+) -> np.ndarray:
+    """Get channel coefficient magnitude reduced across rx/tx dimensions.
+
+    Reduces the magnitude across all dimensions except the path dimension,
+    allowing for easy filtering based on aggregate magnitude criteria.
+
+    Args:
+        a: Paths object or tuple of (real, imag) tensors from paths.a
+        mode: Reduction mode - 'max', 'min', 'mean', 'median' (default: 'max')
+
+    Returns:
+        Array of shape (num_paths,) with reduced magnitude values
+
+    Example:
+        >>> # Get worst-case (min) magnitude per path
+        >>> mag = get_a_mag_reduced(paths, mode='min')
+        >>> mask = ((mag > 0.1) & (mag < 0.2)) | ((mag > 0.5) & (mag < 0.7))
+        >>>
+        >>> # Get best-case (max) magnitude per path
+        >>> mag = get_a_mag_reduced(paths, mode='max')
+        >>> mask = mag > 0.5
+        >>>
+        >>> # Get average magnitude per path
+        >>> mag = get_a_mag_reduced(paths, mode='mean')
+        >>> mask = mag < 0.2
+    """
+    a_mag = get_a_mag(a)
+
+    # Reduce across all dimensions except the last (paths dimension)
+    axes = tuple(range(a_mag.ndim - 1))
+
+    if mode == "max":
+        return a_mag.max(axis=axes)
+    elif mode == "min":
+        return a_mag.min(axis=axes)
+    elif mode == "mean":
+        return a_mag.mean(axis=axes)
+    elif mode == "median":
+        return np.median(a_mag, axis=axes)
+    else:
+        raise ValueError(
+            f"Unknown mode: {mode}. Must be one of: 'max', 'min', 'mean', 'median'"
+        )

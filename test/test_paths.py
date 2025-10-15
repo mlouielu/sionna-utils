@@ -333,3 +333,22 @@ def test_get_a(scene):
 
     assert a.shape == paths.a[0].shape
     assert a_mag.shape == paths.a[0].shape
+
+
+def test_get_a_mag_reduced(scene):
+    for name, obj in scene.objects.items():
+        obj.radio_material.scattering_coefficient = 0.1
+    p_solver = PathSolver()
+    paths = p_solver(
+        scene,
+        max_depth=3,
+        los=True,
+        specular_reflection=True,
+        diffuse_reflection=True,
+        synthetic_array=False,
+        seed=42,
+    )
+
+    a = sionna_utils.paths.get_a_mag_reduced(paths)
+
+    assert a.shape == paths.a[0].shape[-1:]
