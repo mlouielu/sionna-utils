@@ -16,5 +16,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pyqt5>=5.15.11",
     "pytest>=8.4.2",
 ]
