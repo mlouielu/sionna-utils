@@ -1,7 +1,7 @@
 Sionna Utils
 ============
 
-*Sionna's missing pieces, your unofficial Sionna toolkit*
+*Sionna's missing pieces, your unofficial Sionna toolkit.*
 
 
 LICENSE
