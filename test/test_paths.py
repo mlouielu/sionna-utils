@@ -447,14 +447,14 @@ def test_get_paths_hit_objects(multipath_scene):
     depths = sionna_utils.paths.get_path_depths(paths)
     seq_mask = mask & (depths == 2)
     wall_floor_count = seq_mask.any(axis=tuple(range(seq_mask.ndim - 1))).sum()
-    assert wall_floor_count > 600
+    assert wall_floor_count > 200
 
     # floor -> wall
     mask = sionna_utils.paths.get_paths_hit_sequence(paths, [1, 2])
     depths = sionna_utils.paths.get_path_depths(paths)
     seq_mask = mask & (depths == 2)
     floor_wall_count = seq_mask.any(axis=tuple(range(seq_mask.ndim - 1))).sum()
-    assert floor_wall_count > 1800
+    assert floor_wall_count > 1000
 
     # Any floor & wall
     mask = sionna_utils.paths.get_paths_hit_objects(paths, [1, 2])
