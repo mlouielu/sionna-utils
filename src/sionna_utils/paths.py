@@ -138,3 +138,139 @@ def get_a_mag_reduced(
         raise ValueError(
             f"Unknown mode: {mode}. Must be one of: 'max', 'min', 'mean', 'median'"
         )
+
+
+@_w("objects")
+def get_paths_hit_objects(
+    objects: mi.TensorXu, object_ids: int | list[int], mode: str = "any"
+) -> np.ndarray:
+    """Check if paths hit specific object(s) in any order.
+
+    Args:
+        objects: Paths object or objects tensor from paths.objects
+                Shape: [max_depth, num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths]
+                or [max_depth, num_rx, num_tx, num_paths]
+        object_ids: Single object ID (int) or list of object IDs to check
+        mode: Reduction mode across rx/tx dimensions:
+              'any' - path hits object for at least one rx/tx (default)
+              'all' - path hits object for all rx/tx combinations
+              'per_link' - path hits object in each rx/tx pair link
+
+    Returns:
+        If object_ids is int: Boolean array of shape (num_paths,)
+        If object_ids is list: Boolean array of shape (num_objects, num_paths)
+
+    Example:
+        >>> # Paths that hit object 5 at some point
+        >>> mask = get_paths_hit_objects(paths, 5)
+        >>>
+        >>> # Check multiple objects
+        >>> masks = get_paths_hit_objects(paths, [1, 5, 10])
+        >>> # Paths hitting object 1 OR 5 OR 10
+        >>> mask = masks.any(axis=0)
+        >>> # Paths hitting object 1 AND 5 AND 10 (any order)
+        >>> mask = masks.all(axis=0)
+        >>> # Paths hitting object 1 but NOT 5
+        >>> mask = masks[0] & ~masks[1]
+    """
+    if not isinstance(objects, mi.TensorXu):
+        raise TypeError(f"Input must be a mi.TensorXu, got {type(objects)}")
+
+    objects_np = objects.numpy()
+
+    # Handle single vs multiple IDs
+    if isinstance(object_ids, int):
+        object_ids = [object_ids]
+        return_single = True
+    else:
+        return_single = False
+
+    results = []
+    for obj_id in object_ids:
+        # Check if the object ID appears at any depth for each path
+        hit_mask = (objects_np == obj_id).any(axis=0)
+
+        # Reduce across rx/tx dimensions
+        axes = tuple(range(hit_mask.ndim - 1))
+
+        if mode == "per_link":
+            results.append(hit_mask)
+        elif mode == "any":
+            results.append(hit_mask.any(axis=axes))
+        elif mode == "all":
+            results.append(hit_mask.all(axis=axes))
+        else:
+            raise ValueError(f"Unknown mode: {mode}. Must be one of: 'any', 'all'")
+
+    result = np.array(results)
+    return result[0] if return_single else result
+
+
+@_w("objects")
+def get_paths_hit_sequence(
+    objects: mi.TensorXu, sequence: list[int], mode: str = "any"
+) -> np.ndarray:
+    """Check if paths hit objects in a specific sequence.
+
+    Checks if the path's interaction sequence matches the given object ID sequence,
+    useful for identifying specific reflection patterns like ghost reflections.
+
+    Args:
+        objects: Paths object or objects tensor from paths.objects
+                Shape: [max_depth, num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths]
+                or [max_depth, num_rx, num_tx, num_paths]
+        sequence: List of object IDs in the order they should be hit
+                 e.g., [1, 2, 1] for bounce off obj1, then obj2, then obj1 again
+        mode: Reduction mode across rx/tx dimensions:
+              'any' - match for at least one rx/tx (default)
+              'all' - match for all rx/tx combinations
+              'per_link' - don't reduct across rx/tx dimensions
+
+    Returns:
+        Boolean array of shape (num_paths,) where True indicates the path
+        matches the sequence
+
+    Example:
+        >>> # Find ghost reflections: object1 -> object2 -> object1
+        >>> mask = get_paths_hit_sequence(paths, [1, 2, 1])
+        >>>
+        >>> # Double bounce on same object
+        >>> mask = get_paths_hit_sequence(paths, [5, 5])
+        >>>
+        >>> # Combine with depth check
+        >>> depths = get_path_depths(paths)
+        >>> mask = get_paths_hit_sequence(paths, [1, 2, 1]) & (depths == 3)
+    """
+    if not isinstance(objects, mi.TensorXu):
+        raise TypeError(f"Input must be a mi.TensorXu, got {type(objects)}")
+
+    if not isinstance(sequence, (list, tuple)) or len(sequence) == 0:
+        raise ValueError("sequence must be a non-empty list or tuple of object IDs")
+
+    objects_np = objects.numpy()
+    seq_len = len(sequence)
+
+    # Check if we have enough depth for this sequence
+    if objects_np.shape[0] < seq_len:
+        # Not enough depth, no paths can match
+        return np.zeros(objects_np.shape[-1], dtype=bool)
+
+    # Extract the first seq_len interactions for each path
+    interactions_subset = objects_np[:seq_len]
+
+    # Check if each depth matches the sequence
+    matches = np.ones(interactions_subset.shape[1:], dtype=bool)
+    for depth_idx, expected_obj_id in enumerate(sequence):
+        matches &= interactions_subset[depth_idx] == expected_obj_id
+
+    # Reduce across rx/tx dimensions
+    axes = tuple(range(matches.ndim - 1))
+
+    if mode == "per_link":
+        return matches
+    elif mode == "any":
+        return matches.any(axis=axes)
+    elif mode == "all":
+        return matches.all(axis=axes)
+    else:
+        raise ValueError(f"Unknown mode: {mode}. Must be one of: 'any', 'all'")
