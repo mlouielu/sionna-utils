@@ -6,6 +6,15 @@ import numpy as np
 
 
 def load_mesh_from_open3d(mesh: o3d.geometry.TriangleMesh, name: str) -> mi.Mesh:
+    """Convert an Open3D triangle mesh to a Mitsuba mesh.
+
+    Args:
+        mesh: Open3D triangle mesh to convert
+        name: Name identifier for the Mitsuba mesh
+
+    Returns:
+        Mitsuba mesh with vertices, normals, and faces transferred from the Open3D mesh
+    """
     props = mi.Properties()
     props.set_id(name)
     props["face_normals"] = mesh.has_triangle_normals()
@@ -31,7 +40,24 @@ def load_mesh_from_open3d(mesh: o3d.geometry.TriangleMesh, name: str) -> mi.Mesh
 def create_coordinate_frame(
     scene: sionna.rt.Scene, scale: float = 1.0, position: list[float] = [0.0, 0.0, 0.0]
 ) -> mi.Mesh:
+    """Create and add a 3D coordinate frame to a Sionna scene for visualization.
 
+    Creates a coordinate frame with three colored arrows representing X (red), Y (green),
+    and Z (blue) axes, plus a black sphere at the origin. The frame is automatically
+    added to the scene.
+
+    Args:
+        scene: Sionna RT scene to add the coordinate frame to
+        scale: Scale factor for the coordinate frame size (default: 1.0)
+        position: 3D position [x, y, z] where the coordinate frame origin should be placed (default: [0, 0, 0])
+
+    Returns:
+        Mitsuba mesh of the Z-axis arrow (for compatibility, though all components are added to scene)
+
+    Note:
+        This function creates internal materials named '_coord_black', '_coord_red',
+        '_coord_green', and '_coord_blue' if they don't already exist in the scene.
+    """
     if scene.get("_coord_black") is None:
         # Initialize materials only once
         scene.add(sionna.rt.RadioMaterial("_coord_black", 1.0, color=[0, 0, 0]))
