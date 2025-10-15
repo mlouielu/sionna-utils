@@ -38,11 +38,6 @@ Open `preview.html` in browser:
 
 ### Add a coordinate frame in the scene
 
-Let's say if you want to visualize the paths, but only want to
-visualize the paths that are 3-bounce path, you can combine
-`sionna_utils.paths.get_paths_hit_sequence()` and
-`sionna_utils.paths.get_path_depths()` to get the exact paths to
-visualize it:
 
 ```
 import sionna.rt
@@ -62,6 +57,12 @@ sionna_utils.utils.scene_export_html(
 
 
 ### Fine-grain mask on paths object
+
+Let's say if you want to visualize the paths, but only want to
+visualize the paths that are 3-bounce path, you can combine
+`sionna_utils.paths.get_paths_hit_sequence()` and
+`sionna_utils.paths.get_path_depths()` to get the exact paths to
+visualize it:
 
 ```
 import numpy as np
