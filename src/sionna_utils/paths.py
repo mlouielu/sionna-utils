@@ -61,3 +61,20 @@ def get_all_valid_paths_mask(valid: mi.TensorXb) -> np.ndarray:
     if not isinstance(valid, mi.TensorXb):
         raise TypeError(f"Input must be a mi.TensorXb, got {type(valid)}")
     return valid.numpy().all(axis=tuple(range(valid.numpy().ndim - 1)))
+
+
+@_w("a")
+def get_a(a: tuple[mi.TensorXf, mi.TensorXf]) -> np.ndarray:
+    if not isinstance(a, tuple):
+        raise TypeError(f"Input must be a tuple, got {type(a)}")
+
+    if not isinstance(a[0], mi.TensorXf) or not isinstance(a[1], mi.TensorXf):
+        raise TypeError(
+            f"Tuple elements must be mi.TensorXf, got {type(a[0])} and {type(a[1])}"
+        )
+
+    return a[0].numpy() + 1j * a[1].numpy()
+
+
+def get_a_mag(obj) -> np.ndarray:
+    return np.abs(get_a(obj))
