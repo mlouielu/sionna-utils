@@ -70,3 +70,141 @@ def test_paths_filter_only_paths_all_valid():
     assert paths2._valid is not None
     # The applied mask should have the same shape as original valid
     assert paths2.valid.numpy().shape == valid_data.shape
+
+
+def test_get_path_depths():
+    # Test with shape [max_depth, num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths]
+    # Using: [3, 2, 1, 2, 1, 4] - max_depth=3, 2 rx, 2 tx, 4 paths
+
+    NONE = sionna.rt.constants.InteractionType.NONE
+    REFRACTION = sionna.rt.constants.InteractionType.REFRACTION
+    DIFFRACTION = sionna.rt.constants.InteractionType.DIFFRACTION
+
+    # Create interaction types tensor
+    # Path 0: 0 interactions (direct/LOS path - all NONE)
+    # Path 1: 1 interaction (one reflection)
+    # Path 2: 2 interactions (two reflections)
+    # Path 3: 3 interactions (three reflections)
+    types_data = np.array(
+        [
+            [  # depth 0
+                [  # rx 0
+                    [  # rx_ant 0
+                        [[NONE, REFRACTION, REFRACTION, REFRACTION]],  # tx 0
+                        [[NONE, REFRACTION, REFRACTION, REFRACTION]],  # tx 1
+                    ]
+                ],
+                [  # rx 1
+                    [  # rx_ant 0
+                        [[NONE, REFRACTION, REFRACTION, REFRACTION]],  # tx 0
+                        [[NONE, REFRACTION, REFRACTION, REFRACTION]],  # tx 1
+                    ]
+                ],
+            ],
+            [  # depth 1
+                [  # rx 0
+                    [  # rx_ant 0
+                        [[NONE, NONE, DIFFRACTION, REFRACTION]],  # tx 0
+                        [[NONE, NONE, DIFFRACTION, REFRACTION]],  # tx 1
+                    ]
+                ],
+                [  # rx 1
+                    [  # rx_ant 0
+                        [[NONE, NONE, DIFFRACTION, REFRACTION]],  # tx 0
+                        [[NONE, NONE, DIFFRACTION, REFRACTION]],  # tx 1
+                    ]
+                ],
+            ],
+            [  # depth 2
+                [  # rx 0
+                    [  # rx_ant 0
+                        [[NONE, NONE, NONE, REFRACTION]],  # tx 0
+                        [[NONE, NONE, NONE, REFRACTION]],  # tx 1
+                    ]
+                ],
+                [  # rx 1
+                    [  # rx_ant 0
+                        [[NONE, NONE, NONE, REFRACTION]],  # tx 0
+                        [[NONE, NONE, NONE, REFRACTION]],  # tx 1
+                    ]
+                ],
+            ],
+        ],
+        dtype=np.uint32,
+    )
+
+    types_tensor = mi.TensorXu(types_data)
+
+    # Calculate depths
+    depths = sionna_utils.paths.get_path_depths(types_tensor)
+
+    # Check shape - should remove the max_depth dimension
+    assert depths.shape == (
+        2,
+        1,
+        2,
+        1,
+        4,
+    ), f"Expected shape (2, 1, 2, 1, 4), got {depths.shape}"
+
+    # Check that all rx/tx combinations have the same depths for each path
+    # Path 0: 0 interactions, Path 1: 1 interaction, Path 2: 2 interactions, Path 3: 3 interactions
+    expected_depths = np.array([0, 1, 2, 3])
+
+    # Check each rx/tx combination
+    for rx in range(2):
+        for tx in range(2):
+            path_depths = depths[rx, 0, tx, 0, :]
+            np.testing.assert_array_equal(
+                path_depths,
+                expected_depths,
+                err_msg=f"Depths mismatch for rx={rx}, tx={tx}",
+            )
+
+    # Test with simplified shape [max_depth, num_rx, num_tx, num_paths]
+    # Using: [2, 2, 2, 3] - max_depth=2, 2 rx, 2 tx, 3 paths
+    types_data_simple = np.array(
+        [
+            [  # depth 0
+                [
+                    [NONE, REFRACTION, REFRACTION],  # rx 0, tx 0
+                    [NONE, REFRACTION, REFRACTION],
+                ],  # rx 0, tx 1
+                [
+                    [NONE, REFRACTION, REFRACTION],  # rx 1, tx 0
+                    [NONE, REFRACTION, REFRACTION],
+                ],  # rx 1, tx 1
+            ],
+            [  # depth 1
+                [
+                    [NONE, NONE, DIFFRACTION],  # rx 0, tx 0
+                    [NONE, NONE, DIFFRACTION],
+                ],  # rx 0, tx 1
+                [
+                    [NONE, NONE, DIFFRACTION],  # rx 1, tx 0
+                    [NONE, NONE, DIFFRACTION],
+                ],  # rx 1, tx 1
+            ],
+        ],
+        dtype=np.uint32,
+    )
+
+    types_tensor_simple = mi.TensorXu(types_data_simple)
+    depths_simple = sionna_utils.paths.get_path_depths(types_tensor_simple)
+
+    # Check shape
+    assert depths_simple.shape == (
+        2,
+        2,
+        3,
+    ), f"Expected shape (2, 2, 3), got {depths_simple.shape}"
+
+    # Check depths: path 0 has 0 interactions, path 1 has 1, path 2 has 2
+    expected_depths_simple = np.array([0, 1, 2])
+    for rx in range(2):
+        for tx in range(2):
+            np.testing.assert_array_equal(
+                depths_simple[rx, tx, :],
+                expected_depths_simple,
+                err_msg=f"Depths mismatch for rx={rx}, tx={tx}",
+            )
