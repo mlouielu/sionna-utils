@@ -14,6 +14,21 @@ help user to adapt and debug issues on Sionna.
 platform for communication systems. But it missed some utilities to
 help user to debug the issue, that's why I created `sionna_utils`.
 
+Installation
+------------
+
+uv:
+
+```
+uv add git+https://github.com/mlouielu/sionna-utils
+```
+
+pip:
+
+```
+python -m pip install git+https://github.com/mlouielu/sionna-utils
+```
+
 Quick Examples
 --------------
 
